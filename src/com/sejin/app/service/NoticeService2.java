@@ -24,20 +24,32 @@ public class NoticeService2 {
 	private String driver = "com.mysql.cj.jdbc.Driver";
 	
 	// 데이터베이스에서 레코드를 가져오고 반환하는 메서드
-	public List<Notice> getList() throws SQLException, ClassNotFoundException{ 
+	public List<Notice> getList(int page) throws SQLException, ClassNotFoundException{ 
 		Connection con = null;
-		Statement st = null;
+		PreparedStatement st = null;
 		ResultSet rs = null;
 		
+		int startPage = 1 + (page-1)*10 ; // 1, 11, 21, 31, ....
+		int endPage = page*10; // 10, 20, 30, 40, ....
 		List<Notice> list = new ArrayList<Notice>(); // Notice 객체를 담는 리스트
 		
 		
-		String sql = "SELECT * FROM NOTICE";
+		String sql = "SELECT * "
+				+ "FROM (SELECT @ROWNUM:=@ROWNUM+1 AS NUM, A.* "
+				+ "FROM (SELECT * FROM sejin.notice ORDER BY REGDATE) A , (SELECT @ROWNUM:=0) R"
+				+ ") M "
+				+ "WHERE NUM BETWEEN ? AND ?;";
+		
+		// 쿼리가 상당히 복잡하다
+		// 데이터베이스에서 뷰를 생성하여 간단히 데이터를 조회할 수 있다.
+		// mysql 에서는 view 생성에서 서브쿼리를 지원하지 않는다... 아 다음에 수정하자
 		
 		Class.forName(driver);
 		con = DriverManager.getConnection(url,user,password);
-		st = con.createStatement();
-		rs = st.executeQuery(sql);
+		st = con.prepareStatement(sql);
+		st.setInt(1,startPage);
+		st.setInt(2,endPage);
+		rs = st.executeQuery();
 		
 		while(rs.next()) {
 			int id = rs.getInt("ID");
@@ -58,6 +70,30 @@ public class NoticeService2 {
 		return list;
 	}
 
+	// 데이터베이스에서 전체 레코드(게시물)의 개수를 반환하는 메서드
+		public int getCount() throws ClassNotFoundException, SQLException {
+			int count = 0;
+			Connection con = null;
+			Statement st = null;
+			ResultSet rs = null;
+			
+			String sql = "SELECT count(ID) CNT FROM sejin.notice";
+			
+			Class.forName(driver);
+			con = DriverManager.getConnection(url,user,password);
+			st = con.createStatement();
+			rs = st.executeQuery(sql);
+			
+			if(rs.next())
+				count = rs.getInt("CNT");
+			
+			con.close();
+			st.close();
+			rs.close();
+			
+			return count;
+		}
+	
 	// 데이터베이스에 새로운 레코드를 삽입하는 메서드
 	public int insert(Notice notice) throws ClassNotFoundException, SQLException {
 		Connection con = null;
@@ -132,4 +168,7 @@ public class NoticeService2 {
 		
 		return rowCount;
 	}
+
+	
+	
 }
